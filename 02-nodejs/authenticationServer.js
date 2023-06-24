@@ -7,7 +7,8 @@
 
   The expected API endpoints are defined below,
   1. POST /signup - User Signup
-    Description: Allows users to create an account. This should be stored in an array on the server, and a unique id should be generated for every new user that is added.
+    Description: Allows users to create an account. This should be stored in an array on the server, 
+    and a unique id should be generated for every new user that is added.
     Request Body: JSON object with username, password, firstName and lastName fields.
     Response: 201 Created if successful, or 400 Bad Request if the username already exists.
     Example: POST http://localhost:3000/signup
@@ -19,9 +20,11 @@
     Example: POST http://localhost:3000/login
 
   3. GET /data - Fetch all user's names and ids from the server (Protected route)
-    Description: Gets details of all users like firstname, lastname and id in an array format. Returned object should have a key called users which contains the list of all users with their email/firstname/lastname.
+    Description: Gets details of all users like firstname, lastname and id in an array format. 
+    Returned object should have a key called users which contains the list of all users with their email/firstname/lastname.
     The users username and password should be fetched from the headers and checked before the array is returned
-    Response: 200 OK with the protected data in JSON format if the username and password in headers are valid, or 401 Unauthorized if the username and password are missing or invalid.
+    Response: 200 OK with the protected data in JSON format if the username and password in headers are valid, 
+    or 401 Unauthorized if the username and password are missing or invalid.
     Example: GET http://localhost:3000/data
 
   - For any other route not defined in the server return 404
@@ -32,6 +35,120 @@
 const express = require("express")
 const PORT = 3000;
 const app = express();
+const bodyParser = require("body-parser")
+const crypto= require("crypto");
+const { use } = require("./fileServer");
 // write your logic here, DONT WRITE app.listen(3000) when you're running tests, the tests will automatically start the server
 
-module.exports = app;
+//global array of users to be stored in-memory instead of using DB
+var userArr = [];
+// parse application/json
+app.use(bodyParser.json());
+
+//-------------- /signup ---------------------
+
+function generateRandomHash() {
+  const randomBytes = crypto.randomBytes(16);
+  const hashString = randomBytes.toString('hex');
+  // console.log(hashString);
+  return hashString;
+}
+
+function authorizeSignup(req, res, next) {
+  const email = req.body.email;
+  for(let userObj of userArr) {
+    if(userObj.email === email) {
+     return res.status(400).send('username already exists');
+    }
+  }
+  next();
+}
+
+function processSignup(req, res) {
+  var userObj = req.body;
+  // console.log(userObj);
+  userObj['token'] = generateRandomHash()
+  userArr.push(userObj);
+  console.log('In-memory store: ', userArr);
+  res.status(201).send('Signup successful');
+}
+
+app.post('/signup', authorizeSignup, processSignup);
+
+
+//-------------- /login ---------------------
+
+function authenticateLogin(req, res, next) {
+  var email = req.body.email;
+  var password = req.body.password;
+  for(let userObj of userArr) {
+    if(userObj.email === email && userObj.password === password) {
+      next();
+    }
+  }
+  return res.status(401).send('Unauthorized');
+}
+
+function processLogin(req, res) {
+  var email = req.body.email;
+  var password = req.body.password;
+  for(let userObj of userArr) {
+    if(userObj.email === email && userObj.password === password) {
+      console.log("Login Success!");
+      return res.status(200).json({
+        email: userObj.email,
+        firstName: userObj.firstName,
+        lastName: userObj.lastName,
+        authToken: userObj.token
+      });
+    }
+  }
+  console.log('Wrong email/password...');
+  return res.status(401).send('Unauthorized');
+}
+
+app.post('/login', processLogin);
+
+
+//-------------- /data ---------------------
+
+function processDataHelper(req, res, next) {
+  // console.log(req.headers);
+  var email = req.headers.email;
+  var password = req.headers.password;
+  var flag = false;
+  for(let userObj of userArr) {
+    if(userObj.email === email && userObj.password === password) {
+      console.log("fetch data Success!");
+      return next();
+    }
+  }
+  console.log('Wrong email/password while fetching data...');
+  return res.status(401).send('Unauthorized');
+}
+
+function processData(req, res) {
+  var responseObj = {
+    users : []
+  }
+
+  for(let userObj of userArr) {
+    var respObj = {
+      email: userObj.email,
+      firstname : userObj.firstName,
+      lastname : userObj.lastName
+    }
+    responseObj.users.push(respObj);
+  }
+  res.status(200).send(responseObj);
+}
+
+app.get('/data', processDataHelper, processData);
+
+app.all('*', (req, res)=> {
+  res.status(404).send("Route not found");
+})
+
+app.listen(PORT, ()=> console.log(`'Auth server' listening on ${PORT}`));
+
+// module.exports = app;

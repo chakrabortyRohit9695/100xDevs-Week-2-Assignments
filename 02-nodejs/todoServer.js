@@ -41,9 +41,96 @@
  */
 const express = require('express');
 const bodyParser = require('body-parser');
-
+const {v4 : uuidv4} = require('uuid');
+port = 3002
 const app = express();
 
 app.use(bodyParser.json());
+
+// function generateUniqueId() {
+//   return uuidv4();
+// }
+
+var counter = 1;
+
+function generateId() {
+  var id = counter.toString();
+  counter++;
+  return id;
+}
+
+var todoMap = {};
+
+//------------- GET /todos ----------------
+
+function fetchAllTodos(req, res) {
+  res.send(Object.values(todoMap));
+}
+
+
+//------------- GET /todos/:id ----------------
+
+function fetchTodoById(req, res) {
+  var id = req.params.id;
+  if(todoMap.hasOwnProperty(id)) {
+    var respObj = todoMap[id];
+    respObj["id"] = id;
+    console.log(respObj);
+    res.status(200).send(respObj);
+    
+  } else {
+    console.log(id + " not present...");
+    res.status(404).send("Not Found");
+  }
+}
+
+
+
+//------------- PUT /todos/:id ----------------
+
+function updateTodoById(req, res) {
+  var id = req.params.id;
+  var body = req.body;
+  if(todoMap.hasOwnProperty(id)) {
+    todoMap[id] = body;
+    res.status(200).send("Updated!");
+  } else {
+    res.status(404).send("Not Found");
+  }
+}
+
+//------------- DELETE /todos/:id ----------------
+
+function deleteTodoById(req, res) {
+  var id = req.params.id;
+  if(todoMap.hasOwnProperty(id)) {
+    delete todoMap[id];
+    console.log(todoMap);
+    res.status(200).send("Deleted!");
+  } else {
+    res.status(404).send("Not Found");
+  }
+}
+
+
+//------------- POST /todos ----------------
+
+function createTodo(req, res) {
+  var id = generateId();
+  todoMap[id] = req.body;
+  console.log(todoMap);
+  res.status(201).send({ id })
+}
+
+app.post('/todos', createTodo)
+app.get('/todos', fetchAllTodos)
+app.get('/todos/:id', fetchTodoById)
+app.put('/todos/:id', updateTodoById)
+app.delete('/todos/:id', deleteTodoById)
+app.all('*', (req, res)=> {
+  res.status(404).send("Route not found");
+})
+
+// app.listen(port, () => console.log(`Todo server Listening on ${port}`))
 
 module.exports = app;

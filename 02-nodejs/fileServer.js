@@ -20,6 +20,68 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const app = express();
+const port = 3001;
 
+
+// function middleware1(req, res, next) {
+//   if(req.params.file){
+//     next();
+//   }
+//   res.status(404).send("Route not found");
+// }
+
+function getFilesList(req, res) {
+  const fullPath = path.join(__dirname, "files");
+  // console.log(fullPath);
+  fs.readdir(fullPath, (err, files) =>  {
+    if(err) {
+      console.log(err.message);
+      res.status(err.status).send({
+        error: {
+          message: err.message
+        }
+      });
+    } else {
+      // console.log(files);
+      res.json(files);
+    }
+  });
+  
+}
+
+app.get('/files', getFilesList);
+
+
+
+function getFile(req, res) {
+  var fileName = req.params.filename;
+  var filePath = path.join(__dirname, './files/', fileName);
+  // console.log(filePath)
+  fs.readFile(filePath, 'utf-8', (err, data) => {
+    if(err) return res.status(404).send("File not found");
+    else {
+      const fileExtention = path.extname(filePath);
+      console.log(fileExtention);
+      if(fileExtention==='.html') return res.sendFile(filePath);
+      else res.send(data);
+    }
+  });
+}
+
+
+app.get('/file/:filename', getFile);
+
+app.all('*', (req, res)=> {
+  res.status(404).send("Route not found");
+})
+
+//By placing the middleware at the end, it acts as a fallback handler for undefined routes
+// app.use(middleware1);
+
+
+function started() {
+  console.log(`Listening on ${port}`);
+}
+app.listen(port, started);
 
 module.exports = app;
